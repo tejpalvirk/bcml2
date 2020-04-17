@@ -1,28 +1,34 @@
 from datetime import datetime
 from flask import Flask, render_template
-from . import app
+from . import app, api
 
-@app.route("/")
-def home():
-    return render_template("home.html")
+from flask import Flask, request
+from flask_restful import reqparse, abort, Api, Resource
+import pickle
+import pandas, json
+from pyscripts import TextPreprocessor
+import os
 
-@app.route("/about/")
-def about():
-    return render_template("about.html")
+os.system("python -m spacy download en_core_web_lg")
+os.system("python -m textblob.download_corpora")
 
-@app.route("/contact/")
-def contact():
-    return render_template("contact.html")
+api = Api(app)
 
-@app.route("/hello/")
-@app.route("/hello/<name>")
-def hello_there(name = None):
-    return render_template(
-        "hello_there.html",
-        name=name,
-        date=datetime.now()
-    )
+# argument parsing
+parser = reqparse.RequestParser()
+parser.add_argument('data', required=True)
+parser.add_argument('parameters', required=True)
 
-@app.route("/api/data")
-def get_data():
-    return app.send_static_file("data.json")
+class BCML(Resource):
+    def post(self):
+        # use parser and find the user's query
+        #args = parser.parse_args()
+        call = request.json
+        datadf = pandas.DataFrame(call['data'])
+        params = call['parameters']
+
+        if params['product'] == 'text':
+            outdf = TextPreprocessor.TextTransformer(purpose=params['purpose']).transform(datadf)
+            return outdf.to_json(orient='records')
+
+api.add_resource(BCML, '/')
